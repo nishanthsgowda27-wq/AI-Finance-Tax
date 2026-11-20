@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Finance Analytics & Dark Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background:#0f172a; color:#f8fafc; }
+        .topbar { background: linear-gradient(90deg, #1e293b, #334155); }
+        .card { background:#1e293b; color:#f8fafc; border-color: #334155; }
+        .card h3 { color: #60a5fa; border-bottom-color: #334155; }
+        input, select { background: #0f172a; color: #f8fafc; border-color: #475569; }
+        .output-box { background: #0f172a; border-left-color: #3b82f6; color: #e2e8f0; }
+        .nav-tabs { background: #0f172a; }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <div class="topbar-brand">
+            <span>💰 AI Finance Dark Analytics</span>
+        </div>
+        <div class="topbar-user">
+            <button onclick="window.location.href='dashboard.html'" class="btn-secondary" style="width:auto;padding:6px 12px;font-size:0.85rem;">Light Dashboard</button>
+            <button onclick="logout()" class="btn-danger" style="width:auto;padding:6px 12px;font-size:0.85rem;">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- INCOME -->
+        <div class="card">
+            <h3>Income & Job</h3>
+            <div class="form-group">
+                <label style="color:#94a3b8;">Yearly Income (₹)</label>
+                <input id="yearIncome" placeholder="e.g. 1200000" value="1200000">
+            </div>
+            <div class="form-group">
+                <label style="color:#94a3b8;">Employment Type</label>
+                <select id="job">
+                    <option value="govt">Government</option>
+                    <option value="salaried">Private Salaried</option>
+                    <option value="business">Business</option>
+                    <option value="farmer">Farmer</option>
+                </select>
+            </div>
+            <button onclick="calculateMonthly()">Calculate Monthly</button>
+            <p id="monthlyOut" class="output-box" style="display:none;"></p>
+        </div>
+
+        <!-- VERIFIED INDIAN TAX -->
+        <div class="card">
+            <h3>🇮🇳 Verified Indian Tax (Old vs New)</h3>
+            <p style="font-size:0.85rem;color:#94a3b8;">Official Indian tax calculation engine (FY 2024-25).</p>
+            <button onclick="tax()">Calculate Tax</button>
+            <p id="taxOut" class="output-box" style="display:none;"></p>
+        </div>
+
+        <!-- REAL LOAN ASSESSMENT -->
+        <div class="card">
+            <h3>Loan & FOIR Suggestion</h3>
+            <button onclick="loan()">Check Loan</button>
+            <p id="loanOut" class="output-box" style="display:none;"></p>
+        </div>
+
+        <!-- FD WITH QUARTERLY COMPOUNDING -->
+        <div class="card">
+            <h3>Fixed Deposit (FD)</h3>
+            <div class="form-group">
+                <label style="color:#94a3b8;">Amount (₹)</label>
+                <input id="fdAmount" placeholder="e.g. 100000" value="100000">
+            </div>
+            <div style="display:flex;gap:10px;">
+                <input id="fdRate" placeholder="Rate %" value="7.5" style="flex:1;">
+                <input id="fdYears" placeholder="Years" value="2" style="flex:1;">
+            </div>
+            <button onclick="fd()" style="margin-top:10px;">Calculate FD</button>
+            <p id="fdOut" class="output-box" style="display:none;"></p>
+        </div>
+
+        <!-- VEHICLE -->
+        <div class="card">
+            <h3>Vehicle Suggestion</h3>
+            <button onclick="vehicle()">Suggest</button>
+            <p id="veh" class="output-box" style="display:none;"></p>
+            <div class="vehicle-box" id="vehBox" style="display:none;">
+                <img id="carImg" class="vehicle-img" alt="Car">
+                <img id="bikeImg" class="vehicle-img" alt="Bike">
+            </div>
+        </div>
+
+        <!-- ADD EXPENSE -->
+        <div class="card">
+            <h3>Add Expense to Database</h3>
+            <div class="form-group">
+                <label style="color:#94a3b8;">Amount (₹)</label>
+                <input id="amount" placeholder="e.g. 1200">
+            </div>
+            <div class="form-group">
+                <label style="color:#94a3b8;">Category</label>
+                <select id="category">
+                    <option>Food</option>
+                    <option>Travel</option>
+                    <option>Rent</option>
+                    <option>Shopping</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <button onclick="addExpense()">Save Expense</button>
+            <p id="log" class="output-box" style="display:none;"></p>
+        </div>
+
+        <!-- GRAPH -->
+        <div class="card full-width">
+            <h3>Analytics Chart</h3>
+            <canvas id="chart" style="max-height:280px;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        let chartInstance = null;
+
+        function calculateMonthly() {
+            const y = Number(yearIncome.value) || 0;
+            const m = Math.round(y / 12);
+            monthlyOut.style.display = 'block';
+            monthlyOut.innerHTML = `<strong>Monthly Income:</strong> ₹${m.toLocaleString('en-IN')}`;
+        }
+
+        async function tax() {
+            const y = Number(yearIncome.value) || 0;
+            try {
+                const res = await fetch(`${API_BASE}/tax`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ annualSalary: y })
+                });
+                const d = await res.json();
+                taxOut.style.display = 'block';
+                taxOut.innerHTML = `
+                    <strong>New Regime:</strong> ₹${(d.newRegime?.totalTax || 0).toLocaleString('en-IN')} (₹${(d.newRegime?.monthlyTax || 0).toLocaleString('en-IN')}/mo)<br>
+                    <strong>Old Regime:</strong> ₹${(d.oldRegime?.totalTax || 0).toLocaleString('en-IN')}<br>
+                    <span style="color:#4ade80;">Recommendation: ${d.recommendation?.recommendedRegime}</span>
+                `;
+            } catch (err) {
+                taxOut.innerText = err.message;
+            }
+        }
+
+        async function loan() {
+            const y = Number(yearIncome.value) || 0;
+            try {
+                const res = await fetch(`${API_BASE}/loan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ income: y, job: job.value })
+                });
+                const d = await res.json();
+                loanOut.style.display = 'block';
+                loanOut.innerHTML = `
+                    <strong>Scheme:</strong> ${d.type}<br>
+                    <strong>Max Eligible Loan:</strong> ₹${(d.eligible || 0).toLocaleString('en-IN')}<br>
+                    <strong>Estimated EMI:</strong> ₹${(d.emi || 0).toLocaleString('en-IN')}/month<br>
+                    <strong>Status:</strong> ${d.affordabilityStatus || 'Affordable'}
+                `;
+            } catch (err) {
+                loanOut.innerText = err.message;
+            }
+        }
+
+        async function fd() {
+            const a = Number(fdAmount.value) || 0;
+            const r = Number(fdRate.value) || 7.5;
+            const y = Number(fdYears.value) || 2;
+            try {
+                const res = await fetch(`${API_BASE}/fd`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: a, rate: r, years: y })
+                });
+                const d = await res.json();
+                fdOut.style.display = 'block';
+                fdOut.innerHTML = `<strong>Maturity:</strong> ₹${(d.maturity || 0).toLocaleString('en-IN')} | <strong>Interest:</strong> ₹${(d.profit || 0).toLocaleString('en-IN')}`;
+            } catch (err) {
+                fdOut.innerText = err.message;
+            }
+        }
+
+        async function vehicle() {
+            const y = Number(yearIncome.value) || 0;
+            try {
+                const res = await fetch(`${API_BASE}/vehicle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ income: y })
+                });
+                const d = await res.json();
+                veh.style.display = 'block';
+                vehBox.style.display = 'flex';
+                veh.innerHTML = `<strong>Car:</strong> ${d.car} (EMI ₹${d.carEMI})<br><strong>Bike:</strong> ${d.bike} (EMI ₹${d.bikeEMI})`;
+                if (d.carImg) carImg.src = d.carImg;
+                if (d.bikeImg) bikeImg.src = d.bikeImg;
+            } catch (err) {
+                veh.innerText = err.message;
+            }
+        }
+
+        async function addExpense() {
+            const amt = Number(amount.value);
+            const cat = category.value;
+            if (!amt) return alert('Enter amount');
+
+            const token = localStorage.getItem('finance_token');
+            try {
+                const res = await fetch(`${API_BASE}/transactions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: JSON.stringify({ type: 'expense', category: cat, amount: amt })
+                });
+                const d = await res.json();
+                log.style.display = 'block';
+                log.innerText = d.success ? `Saved ₹${amt} under ${cat}` : `Error: ${d.message}`;
+                amount.value = '';
+                showGraph();
+            } catch (err) {
+                log.innerText = err.message;
+            }
+        }
+
+        async function showGraph() {
+            const token = localStorage.getItem('finance_token');
+            try {
+                const res = await fetch(`${API_BASE}/reports/analytics`, {
+                    headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+                });
+                const d = await res.json();
+                const catData = d.categoryBreakdown || { Food: 10000, Travel: 3000, Rent: 15000, Shopping: 5000 };
+
+                const labels = Object.keys(catData);
+                const values = Object.values(catData);
+
+                const ctx = document.getElementById('chart').getContext('2d');
+                if (chartInstance) chartInstance.destroy();
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Expenses (₹)',
+                            data: values,
+                            backgroundColor: '#3b82f6'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('finance_token');
+            localStorage.removeItem('finance_user');
+            window.location.href = 'login.html';
+        }
+
+        window.onload = () => {
+            calculateMonthly();
+            showGraph();
+        };
+    </script>
+</body>
+</html>
